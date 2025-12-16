@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+
+<html lang="en"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>CyberForge | Breach Probability</title> <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script> <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> <style> /* ========================================================================== THEME: NETSEC TERMINAL (The "Hacker" Aesthetic) ========================================================================== */ :root { --terminal-bg: #0d1117; --terminal-card: #161b22; --terminal-border: #30363d;
+
+        --neon-green: #39d353; /* Success/Safe */
+        --neon-red: #ff7b72;   /* Critical/Breach */
+        --neon-yellow: #d29922; /* Warning */
+        --neon-blue: #58a6ff;  /* Info */
+        
+        --text-main: #c9d1d9;
+        --text-dim: #8b949e;
+        
+        --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body { 
+        background-color: var(--terminal-bg); 
+        color: var(--text-main); 
+        font-family: var(--font-mono);
+        min-height: 100vh;
+        padding-bottom: 50px;
+        /* Scanline effect */
+        background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+        background-size: 100% 2px, 3px 100%;
+    }
+
+    .container { max-width: 1400px; margin: 0 auto; padding: 0 20px; }
+
+    /* HEADER */
+    .terminal-header {
+        border-bottom: 1px solid var(--terminal-border);
+        padding: 20px 0;
+        margin-bottom: 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .brand {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--neon-green);
+        text-shadow: 0 0 5px rgba(57, 211, 83, 0.3);
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+    
+    .cursor::after {
+        content: '_';
+        animation: blink 1s infinite;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    .status-badge {
+        font-size: 0.8rem;
+        padding: 5px 10px;
+        border: 1px solid var(--neon-blue);
+        color: var(--neon-blue);
+        border-radius: 4px;
+        background: rgba(88, 166, 255, 0.1);
+    }
+
+    /* GRID */
+    .grid-layout {
+        display: grid;
+        grid-template-columns: 350px 1fr;
+        gap: 20px;
+    }
+    @media (max-width: 1024px) { .grid-layout { grid-template-columns: 1fr; } }
+
+    /* PANELS */
+    .panel {
+        background: var(--terminal-card);
+        border: 1px solid var(--terminal-border);
+        border-radius: 6px;
+        padding: 20px;
+        position: relative;
+        margin-bottom: 20px;
+    }
+
+    .panel-header {
+        color: var(--text-dim);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--terminal-border);
+        padding-bottom: 8px;
+    }
+
+    /* CONTROLS */
+    .input-group { margin-bottom: 25px; }
+    .label-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
+    .val-display { color: var(--neon-blue); }
+
+    input[type=range] {
+        width: 100%;
+        height: 4px;
+        background: var(--terminal-border);
+        outline: none;
+        -webkit-appearance: none;
+    }
+    
+    input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 12px;
+        height: 20px;
+        background: var(--neon-green);
+        cursor: pointer;
+        box-shadow: 0 0 10px var(--neon-green);
+    }
+
+    /* DEFENSE STACK */
+    .stack-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .stack-item {
+        border: 1px solid var(--terminal-border);
+        padding: 10px;
+        cursor: pointer;
+        text-align: center;
+        transition: 0.2s;
+        background: rgba(255,255,255,0.02);
+    }
+
+    .stack-item:hover { border-color: var(--neon-green); }
+    
+    .stack-item.active { 
+        background: rgba(57, 211, 83, 0.1); 
+        border-color: var(--neon-green);
+        color: var(--neon-green);
+        box-shadow: inset 0 0 10px rgba(57, 211, 83, 0.1);
+    }
+
+    .stack-icon { font-size: 1.2rem; margin-bottom: 5px; display: block; }
+    .stack-name { font-size: 0.8rem; font-weight: bold; }
+
+    /* KPI DISPLAY */
+    .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+    .kpi-card { background: #0d1117; border: 1px solid var(--terminal-border); padding: 15px; text-align: center; }
+    .kpi-val { font-size: 1.8rem; font-weight: 700; color: white; display: block; margin-bottom: 5px; }
+    .kpi-lbl { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; }
+
+    /* LOG BOX */
+    .log-box {
+        height: 150px;
+        background: black;
+        border: 1px solid var(--terminal-border);
+        padding: 10px;
+        font-size: 0.8rem;
+        color: var(--neon-green);
+        overflow-y: hidden;
+        font-family: var(--font-mono);
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+    }
+    .log-line { margin-bottom: 4px; opacity: 0.8; }
+    .log-line.warn { color: var(--neon-yellow); }
+    .log-line.crit { color: var(--neon-red); }
+
+    /* CHART CONTAINER */
+    #chart-container { width: 100%; height: 350px; }
+
+</style>
+
+</head> <body>
+
+<div class="container"> <div class="terminal-header"> <div class="brand"> <i class="fas fa-shield-alt"></i> CyberForge <span class="cursor"></span> </div> <div class="status-badge"> <i class="fas fa-lock"></i> SECURE CONTEXT </div> </div>
+
+<div class="grid-layout">
+    
+    <div class="sidebar">
+        <div class="panel">
+            <div class="panel-header">
+                <span>Threat Environment</span>
+                <i class="fas fa-globe"></i>
+            </div>
+
+            <div class="input-group">
+                <div class="label-row">
+                    <span>Attacker Sophistication</span>
+                    <span class="val-display" id="val-threat">Script Kiddie</span>
+                </div>
+                <input type="range" id="input-threat" min="1" max="10" value="3" oninput="updateSim()">
+                <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 5px; display: flex; justify-content: space-between;">
+                    <span>Botnet</span>
+                    <span>Nation State</span>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <div class="label-row">
+                    <span>Attack Surface (Assets)</span>
+                    <span class="val-display" id="val-surface">Medium</span>
+                </div>
+                <input type="range" id="input-surface" min="1" max="5" value="3" oninput="updateSim()">
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <span>Defense Stack (Active Measures)</span>
+                <i class="fas fa-layer-group"></i>
+            </div>
+            
+            <div class="stack-grid">
+                <div class="stack-item" onclick="toggleDef(this, 'mfa')">
+                    <span class="stack-icon"><i class="fas fa-mobile-alt"></i></span>
+                    <span class="stack-name">MFA</span>
+                </div>
+                <div class="stack-item" onclick="toggleDef(this, 'edr')">
+                    <span class="stack-icon"><i class="fas fa-search"></i></span>
+                    <span class="stack-name">EDR / XDR</span>
+                </div>
+                <div class="stack-item" onclick="toggleDef(this, 'patch')">
+                    <span class="stack-icon"><i class="fas fa-band-aid"></i></span>
+                    <span class="stack-name">Auto-Patch</span>
+                </div>
+                <div class="stack-item" onclick="toggleDef(this, 'sso')">
+                    <span class="stack-icon"><i class="fas fa-key"></i></span>
+                    <span class="stack-name">Zero Trust</span>
+                </div>
+                <div class="stack-item" onclick="toggleDef(this, 'training')">
+                    <span class="stack-icon"><i class="fas fa-user-graduate"></i></span>
+                    <span class="stack-name">Awareness</span>
+                </div>
+                <div class="stack-item" onclick="toggleDef(this, 'backup')">
+                    <span class="stack-icon"><i class="fas fa-hdd"></i></span>
+                    <span class="stack-name">Air-Gap</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="log-box" id="sys-log">
+            <div class="log-line">> Initializing Forge Kernel...</div>
+            <div class="log-line">> Loading Threat Intelligence Feeds...</div>
+            <div class="log-line">> System Ready.</div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <span class="kpi-val" id="kpi-prob" style="color: var(--neon-red)">0%</span>
+                <span class="kpi-lbl">Breach Probability (24h)</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-val" id="kpi-cost" style="color: var(--neon-yellow)">$0</span>
+                <span class="kpi-lbl">Est. Impact Cost</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-val" id="kpi-score" style="color: var(--neon-green)">F</span>
+                <span class="kpi-lbl">Security Score</span>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <span>Attack Vector Simulation (Monte Carlo)</span>
+                <span style="color: var(--neon-green)">LIVE</span>
+            </div>
+            <div id="chart-container"></div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <span>CISO Recommendation Engine</span>
+            </div>
+            <div id="rec-text" style="font-size: 0.9rem; line-height: 1.5; color: var(--text-main);">
+                Analysing inputs...
+            </div>
+        </div>
+    </div>
+
+</div>
+
+</div>
+
+<script> // --- 1. CONFIGURATION --- const THREAT_LEVELS = ["Script Kiddie", "Botnet", "Insider", "Crimeware", "Hacktivist", "Cyber Gang", "APT Group", "Nation State (Low)", "Nation State (High)", "Global Superpower"];
+
+// Each defense reduces the &quot;Lambda&quot; (Arrival rate of successful attacks)
+const DEFENSES = {
+    &#39;mfa&#39;: { reduction: 0.45, name: &quot;Multi-Factor Auth&quot; }, // Huge impact
+    &#39;edr&#39;: { reduction: 0.25, name: &quot;Endpoint Detection&quot; },
+    &#39;patch&#39;: { reduction: 0.30, name: &quot;Patch Management&quot; },
+    &#39;sso&#39;: { reduction: 0.20, name: &quot;Zero Trust Arch&quot; },
+    &#39;training&#39;: { reduction: 0.15, name: &quot;Phishing Training&quot; },
+    &#39;backup&#39;: { reduction: 0.05, name: &quot;Immutable Backups&quot; } // Doesn&#39;t stop breach, reduces impact
+};
+
+let activeDefenses = new Set();
+
+// --- 2. LOGIC ---
+function toggleDef(el, id) {
+    if(activeDefenses.has(id)) {
+        activeDefenses.delete(id);
+        el.classList.remove(&#39;active&#39;);
+        addLog(`Disabling module: ${DEFENSES[id].name}`, &#39;warn&#39;);
+    } else {
+        activeDefenses.add(id);
+        el.classList.add(&#39;active&#39;);
+        addLog(`Module Active: ${DEFENSES[id].name}`, &#39;norm&#39;);
+    }
+    updateSim();
+}
+
+function addLog(msg, type) {
+    const log = document.getElementById(&#39;sys-log&#39;);
+    const div = document.createElement(&#39;div&#39;);
+    div.className = `log-line ${type}`;
+    div.innerText = `&gt; ${msg}`;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    
+    // Keep log short
+    if(log.children.length &gt; 8) log.removeChild(log.firstChild);
+}
+
+function updateSim() {
+    // 1. Get Inputs
+    const threatInput = parseInt(document.getElementById(&#39;input-threat&#39;).value);
+    const surfaceInput = parseInt(document.getElementById(&#39;input-surface&#39;).value);
+    
+    document.getElementById(&#39;val-threat&#39;).innerText = THREAT_LEVELS[threatInput - 1];
+    document.getElementById(&#39;val-surface&#39;).innerText = surfaceInput === 1 ? &quot;Low&quot; : surfaceInput === 5 ? &quot;Critical&quot; : &quot;Medium&quot;;
+
+    // 2. Calculate &quot;Lambda&quot; (Risk Rate)
+    // Base risk increases with threat level and surface area
+    let baseRisk = (threatInput * 0.15) * (surfaceInput * 0.5); 
+    
+    // Apply Defenses (Multiplicative reduction)
+    let riskMultiplier = 1.0;
+    activeDefenses.forEach(id =&gt; {
+        riskMultiplier *= (1 - DEFENSES[id].reduction);
+    });
+
+    let finalLambda = baseRisk * riskMultiplier;
+
+    // 3. Generate Probability Curve (Poisson CDF approximation for &quot;at least one breach&quot;)
+    // P(Breach in time t) = 1 - e^(-lambda * t)
+    
+    let xData = [];
+    let yData = [];
+    let timeHorizon = 24; // Hours
+
+    for(let t = 0; t &lt;= timeHorizon; t++) {
+        xData.push(t);
+        let prob = 1 - Math.exp(-finalLambda * (t/10)); // Scaling t for visualization
+        yData.push(prob * 100);
+    }
+
+    // 4. Update KPIs
+    const prob24h = yData[yData.length - 1];
+    const kpiProb = document.getElementById(&#39;kpi-prob&#39;);
+    kpiProb.innerText = prob24h.toFixed(1) + &quot;%&quot;;
+    
+    // Color coding KPI
+    if(prob24h &gt; 70) kpiProb.style.color = &quot;var(--neon-red)&quot;;
+    else if(prob24h &gt; 30) kpiProb.style.color = &quot;var(--neon-yellow)&quot;;
+    else kpiProb.style.color = &quot;var(--neon-green)&quot;;
+
+    // Cost Calc (Simple multiplier)
+    const assetValue = surfaceInput * 50000; // $50k per surface unit base
+    const expLoss = assetValue * (prob24h / 100);
+    document.getElementById(&#39;kpi-cost&#39;).innerText = &quot;$&quot; + Math.round(expLoss/1000) + &quot;k&quot;;
+
+    // Score Calc
+    const score = 100 - prob24h;
+    let grade = &#39;F&#39;;
+    if(score &gt; 90) grade = &#39;A&#39;;
+    else if(score &gt; 80) grade = &#39;B&#39;;
+    else if(score &gt; 60) grade = &#39;C&#39;;
+    else if(score &gt; 40) grade = &#39;D&#39;;
+    document.getElementById(&#39;kpi-score&#39;).innerText = grade;
+
+    // 5. Update Recommendations
+    generateRecs(prob24h, activeDefenses, threatInput);
+
+    // 6. Render
+    renderChart(xData, yData);
+}
+
+function generateRecs(prob, defs, threat) {
+    let msg = &quot;&quot;;
+    
+    if (threat &gt; 7 &amp;&amp; !defs.has(&#39;edr&#39;)) {
+        msg += &quot;&lt;span style=&#39;color:var(--neon-red)&#39;&gt;[CRITICAL]&lt;/span&gt; Nation-state threat detected. EDR/XDR is mandatory. <br>&quot;;
+    }
+    if (prob &gt; 50 &amp;&amp; !defs.has(&#39;mfa&#39;)) {
+        msg += &quot;&lt;span style=&#39;color:var(--neon-yellow)&#39;&gt;[WARN]&lt;/span&gt; Identity vector exposed. Enable MFA immediately to reduce risk by 45%. <br>&quot;;
+    }
+    if (prob &lt; 20) {
+        msg += &quot;&lt;span style=&#39;color:var(--neon-green)&#39;&gt;[OK]&lt;/span&gt; Defense posture is strong relative to threat level. Monitor for drift.&quot;;
+    }
+    if (msg === &quot;&quot;) msg = &quot;System baseline established. Add defenses to reduce residual risk.&quot;;
+    
+    document.getElementById(&#39;rec-text&#39;).innerHTML = msg;
+}
+
+function renderChart(x, y) {
+    const trace = {
+        x: x,
+        y: y,
+        mode: &#39;lines&#39;,
+        fill: &#39;tozeroy&#39;,
+        line: { color: &#39;#ff7b72&#39;, width: 3 }, // Neon Red
+        fillcolor: &#39;rgba(255, 123, 114, 0.1)&#39;,
+        name: &#39;Breach Prob&#39;
+    };
+
+    const layout = {
+        paper_bgcolor: &#39;rgba(0,0,0,0)&#39;,
+        plot_bgcolor: &#39;rgba(0,0,0,0)&#39;,
+        margin: { t: 10, r: 20, l: 40, b: 40 },
+        xaxis: { 
+            title: &#39;Time (Hours)&#39;, 
+            gridcolor: &#39;#30363d&#39;,
+            tickfont: { color: &#39;#8b949e&#39; },
+            titlefont: { color: &#39;#8b949e&#39; }
+        },
+        yaxis: { 
+            title: &#39;Probability (%)&#39;, 
+            gridcolor: &#39;#30363d&#39;,
+            range: [0, 100],
+            tickfont: { color: &#39;#8b949e&#39; },
+            titlefont: { color: &#39;#8b949e&#39; }
+        },
+        showlegend: false
+    };
+
+    const config = { displayModeBar: false, responsive: true };
+    Plotly.newPlot(&#39;chart-container&#39;, [trace], layout, config);
+}
+
+// Init
+updateSim();
+
+// Simulate incoming logs
+setTimeout(() =&gt; addLog(&quot;Threat Feed updated: CVE-2024-XXXX&quot;, &quot;norm&quot;), 2000);
+
+</script>
+
+</body> </html>
